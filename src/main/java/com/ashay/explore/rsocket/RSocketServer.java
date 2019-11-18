@@ -1,6 +1,7 @@
 package com.ashay.explore.rsocket;
 
 import io.netty.buffer.ByteBufUtil;
+import io.netty.handler.ssl.SslContextBuilder;
 import io.rsocket.AbstractRSocket;
 import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.Payload;
@@ -12,6 +13,9 @@ import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.DefaultPayload;
 import reactor.core.publisher.Mono;
+import reactor.netty.tcp.TcpServer;
+
+import java.io.InputStream;
 
 import static io.netty.buffer.ByteBufAllocator.DEFAULT;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -20,9 +24,18 @@ public class RSocketServer {
     private final CloseableChannel server;
 
     public RSocketServer() {
+        InputStream certificate = getClass().getResourceAsStream("/localhost.crt");
+        InputStream key = getClass().getResourceAsStream("/localhost.key");
+        SslContextBuilder sslContextBuilder = SslContextBuilder.forServer(certificate, key);
+
+        TcpServer tcpServer = TcpServer.create()
+                .host("localhost")
+                .port(7777)
+                .secure(sslContextSpec -> sslContextSpec.sslContext(sslContextBuilder));
+
         server = RSocketFactory.receive()
                 .acceptor((setup, sendingSocket) -> Mono.just(new RSocketImpl(setup)))
-                .transport(TcpServerTransport.create(7777))
+                .transport(TcpServerTransport.create(tcpServer))
                 .start()
                 .block();
     }
@@ -31,7 +44,7 @@ public class RSocketServer {
         RSocketServer rSocketServer = new RSocketServer();
         rSocketServer.start();
 
-        Thread.sleep(10000);
+        Thread.sleep(100000);
 
         rSocketServer.dispose();
     }
